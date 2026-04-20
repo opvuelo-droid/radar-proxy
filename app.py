@@ -3,32 +3,28 @@ from flask_cors import CORS
 from FlightRadar24 import FlightRadar24API
 
 app = Flask(__name__)
-# Permitimos que tu web de Google Apps Script lea los datos
 CORS(app)
-
-# Inicializamos el "hacker" de FlightRadar
 fr_api = FlightRadar24API()
 
 @app.route('/radar')
 def get_radar():
     try:
-        # La librería se salta el firewall y pide solo las aerolíneas que queremos
         flights = fr_api.get_flights(airline="IBB,RSC,NAY")
-        
         aviones_limpios = []
-        
         for f in flights:
             aviones_limpios.append({
                 "lat": f.latitude,
                 "lon": f.longitude,
                 "track": f.heading,
-                "type": f.aircraft_code or "N/A",  # Ej: "E295"
-                "reg": f.registration or "N/A",    # Ej: "EC-NQA"
-                "flight": f.callsign or ""         # Ej: "IBB123A"
+                "type": f.aircraft_code or "N/A",
+                "reg": f.registration or "N/A",
+                "flight": f.callsign or "",
+                "altitud": f.altitude,
+                "velocidad": f.ground_speed,
+                "v_speed": f.vertical_speed,
+                "on_ground": f.on_ground
             })
-                
         return jsonify({"success": True, "data": aviones_limpios})
-    
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
