@@ -3,15 +3,17 @@ from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
-# Permitimos que la web lea esto
+# Permitimos la conexión desde Google Apps Script
 CORS(app)
 
 @app.route('/radar')
 def get_radar():
-    url = 'https://data-live.flightradar24.com/zones/fcgi?faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=0&estimated=1&maxage=14400&gliders=0&stats=0&airline=ibb,nay,rsc'
+    # Coordenadas perfectas: Norte(45), Sur(25), Este(5), Oeste(-20)
+    # Pedimos la caja entera de la península y Canarias, sin filtrar aerolíneas en la URL
+    url = 'https://data-live.flightradar24.com/zones/fcgi?bounds=45.0,25.0,5.0,-20.0&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1'
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.flightradar24.com/",
         "Accept": "application/json"
     }
@@ -24,21 +26,25 @@ def get_radar():
         for key, val in data.items():
             if key not in ["full_count", "version", "stats"] and isinstance(val, list):
                 
-                # PROTECCIÓN TOTAL: Si la lista es demasiado corta, nos saltamos el avión
-                if len(val) < 4:
+                # ESCUDO: Si el avión no transmite datos completos, lo ignoramos para evitar cuelgues
+                if len(val) < 17:
                     continue
                     
-                flight_callsign = val[16] if len(val) > 16 and val[16] else (val[13] if len(val) > 13 else "")
+                callsign = str(val[16]).strip().upper()
+                iata = str(val[13]).strip().upper()
+                tipo = str(val[8]).upper() if len(val) > 8 else ""
                 
-                aviones.append({
-                    "lat": val[1],
-                    "lon": val[2],
-                    "track": val[3],
-                    "type": val[8] if len(val) > 8 else "N/A",
-                    "reg": val[9] if len(val) > 9 else "N/A",
-                    "flight": flight_callsign
-                })
-                
+                # FILTRO EN PYTHON: Extraemos solo nuestra flota (IBB, RSC, NAY o NT)
+                if callsign.startswith("IBB") or callsign.startswith("RSC") or callsign.startswith("NAY") or iata.startswith("NT"):
+                    aviones.append({
+                        "lat": val[1],
+                        "lon": val[2],
+                        "track": val[3],
+                        "type": tipo,
+                        "reg": val[9] if len(val) > 9 else "N/A",
+                        "flight": callsign if callsign else iata
+                    })
+                        
         return jsonify({"success": True, "data": aviones})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
