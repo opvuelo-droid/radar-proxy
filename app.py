@@ -3,12 +3,11 @@ from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
-# Esto es vital: Permite que tu web de Google lea estos datos sin que salte el error de CORS
+# Permitimos que la web lea esto
 CORS(app)
 
 @app.route('/radar')
 def get_radar():
-    # Buscamos toda la flota a nivel global para que no haya bloqueos de coordenadas
     url = 'https://data-live.flightradar24.com/zones/fcgi?faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=0&estimated=1&maxage=14400&gliders=0&stats=0&airline=ibb,nay,rsc'
     
     headers = {
@@ -22,10 +21,13 @@ def get_radar():
         data = response.json()
         aviones = []
         
-        # FR24 devuelve los aviones dentro de arrays indexados por IDs
         for key, val in data.items():
             if key not in ["full_count", "version", "stats"] and isinstance(val, list):
-                # Extraemos indicativo (índice 16 o 13)
+                
+                # PROTECCIÓN TOTAL: Si la lista es demasiado corta, nos saltamos el avión
+                if len(val) < 4:
+                    continue
+                    
                 flight_callsign = val[16] if len(val) > 16 and val[16] else (val[13] if len(val) > 13 else "")
                 
                 aviones.append({
